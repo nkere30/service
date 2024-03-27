@@ -19,12 +19,14 @@ import java.util.List;
 public class EmployeeServiceImpl implements EmployeeService{
     private static final String FIND_MANAGER = "SELECT * FROM employee WHERE id = ?";
     private static final String FIND_DEP = "SELECT * FROM department WHERE id = ?";
-    private static final String GET_ALL_SORT_BY_HIRE_DATE = "SELECT * FROM employee ORDER BY hiredate";
+    private static final String GET_ALL_SORT_BY_HIREDATE = "SELECT * FROM employee ORDER BY hiredate LIMIT ? OFFSET ?";
     @Override
     public List<Employee> getAllSortByHireDate(Paging paging) {
         List<Employee> employees = new ArrayList<>();
         try (Connection connection = ConnectionSource.instance().createConnection()) {
-            PreparedStatement statement = connection.prepareStatement(GET_ALL_SORT_BY_HIRE_DATE);
+            PreparedStatement statement = connection.prepareStatement(GET_ALL_SORT_BY_HIREDATE);
+            statement.setInt(1, paging.itemPerPage);
+            statement.setInt(2, (paging.page - 1) * paging.itemPerPage);
             ResultSet resultSet = statement.executeQuery();
             while (resultSet.next()) {
                 Employee employee = mapResultSetToEmployee(resultSet);
