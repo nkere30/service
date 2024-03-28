@@ -20,76 +20,83 @@ public class EmployeeServiceImpl implements EmployeeService{
     private static final String FIND_MANAGER = "SELECT * FROM employee WHERE id = ?";
     private static final String FIND_DEP = "SELECT * FROM department WHERE id = ?";
     private static final String GET_ALL_SORT_BY_HIREDATE = "SELECT * FROM employee ORDER BY hiredate LIMIT ? OFFSET ?";
+    private static final String GET_ALL_SORT_BY_LASTNAME = "SELECT * FROM employee ORDER BY lastname LIMIT ? OFFSET ?";
+    private static final String GET_ALL_SORT_BY_SALARY = "SELECT * FROM employee ORDER BY salary LIMIT ? OFFSET ?";
+    private static final String GET_ALL_SORT_BY_DEP_NAME_LASTNAME = "SELECT * FROM employee ORDER BY department, firstname, lastname LIMIT ? OFFSET ?";
+    private static final String GET_BY_DEP_SORT_BY_HIREDATE = "SELECT * FROM employee WHERE department = ? ORDER BY hiredate LIMIT ? OFFSET ?";
+    private static final String GET_BY_DEP_SORT_BY_SALARY = "SELECT * FROM employee WHERE department = ? ORDER BY salary LIMIT ? OFFSET ?";
+    private static final String GET_BY_DEP_SORT_BY_LASTNAME= "SELECT * FROM employee WHERE department = ? ORDER BY lastname LIMIT ? OFFSET ?";
+    private static final String GET_BY_MANAGER_SORT_BY_LASTNAME= "SELECT * FROM employee WHERE manager = ? ORDER BY lastname LIMIT ? OFFSET ?";
+    private static final String GET_BY_MANAGER_SORT_BY_HIREDATE = "SELECT * FROM employee WHERE manager = ? ORDER BY hiredate LIMIT ? OFFSET ?";
+    private static final String GET_BY_MANAGER_SORT_BY_SALARY = "SELECT * FROM employee WHERE manager = ? ORDER BY salary LIMIT ? OFFSET ?";
+    private static final String GET_ONE_EMPLOYEE = "SELECT * FROM employee WHERE id = ?";
+    private static final String GET_TOP_N = "SELECT * FROM employee WHERE department = ? ORDER BY salary DESC LIMIT ?, 1";;
     @Override
-    public List<Employee> getAllSortByHireDate(Paging paging) {
-        List<Employee> employees = new ArrayList<>();
-        try (Connection connection = ConnectionSource.instance().createConnection()) {
-            PreparedStatement statement = connection.prepareStatement(GET_ALL_SORT_BY_HIREDATE);
-            statement.setInt(1, paging.itemPerPage);
-            statement.setInt(2, (paging.page - 1) * paging.itemPerPage);
-            ResultSet resultSet = statement.executeQuery();
-            while (resultSet.next()) {
-                Employee employee = mapResultSetToEmployee(resultSet);
-                employees.add(employee);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return employees;
-    }
+    public List<Employee> getAllSortByHireDate(Paging paging) {return getEmployees(paging, GET_ALL_SORT_BY_HIREDATE, "", null, null);}
+
+
 
     @Override
-    public List<Employee> getAllSortByLastname(Paging paging) {
-        return null;
-    }
+    public List<Employee> getAllSortByLastname(Paging paging) {return getEmployees(paging, GET_ALL_SORT_BY_LASTNAME, "", null, null);}
 
     @Override
     public List<Employee> getAllSortBySalary(Paging paging) {
-        return null;
+        return getEmployees(paging, GET_ALL_SORT_BY_SALARY, "", null, null);
     }
 
     @Override
     public List<Employee> getAllSortByDepartmentNameAndLastname(Paging paging) {
-        return null;
-    }
+        return getEmployees(paging, GET_ALL_SORT_BY_DEP_NAME_LASTNAME, "", null, null);}
 
     @Override
     public List<Employee> getByDepartmentSortByHireDate(Department department, Paging paging) {
-        return null;
+        return getEmployees(paging, GET_BY_DEP_SORT_BY_HIREDATE, "dep", department, null);
     }
 
     @Override
     public List<Employee> getByDepartmentSortBySalary(Department department, Paging paging) {
-        return null;
+        return getEmployees(paging, GET_BY_DEP_SORT_BY_SALARY, "dep", department, null);
     }
 
     @Override
     public List<Employee> getByDepartmentSortByLastname(Department department, Paging paging) {
-        return null;
+        return getEmployees(paging, GET_BY_DEP_SORT_BY_LASTNAME, "dep", department, null);
     }
 
     @Override
     public List<Employee> getByManagerSortByLastname(Employee manager, Paging paging) {
-        return null;
+        return getEmployees(paging, GET_BY_MANAGER_SORT_BY_LASTNAME, "manager", null, manager);
     }
 
     @Override
     public List<Employee> getByManagerSortByHireDate(Employee manager, Paging paging) {
-        return null;
+        return getEmployees(paging, GET_BY_MANAGER_SORT_BY_HIREDATE, "manager", null, manager);
     }
 
     @Override
     public List<Employee> getByManagerSortBySalary(Employee manager, Paging paging) {
-        return null;
+        return getEmployees(paging, GET_BY_MANAGER_SORT_BY_SALARY, "manager", null, manager);
     }
 
     @Override
     public Employee getWithDepartmentAndFullManagerChain(Employee employee) {
-        return null;
+        return findEmployee(employee.getId());
     }
 
     @Override
     public Employee getTopNthBySalaryByDepartment(int salaryRank, Department department) {
+        try (Connection connection = ConnectionSource.instance().createConnection()) {
+            PreparedStatement statement = connection.prepareStatement(GET_TOP_N);
+            statement.setInt(1, department.getId().intValue());
+            statement.setInt(2, salaryRank - 1);
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                return mapResultSetToEmployee(resultSet);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
         return null;
     }
 
@@ -103,10 +110,10 @@ public class EmployeeServiceImpl implements EmployeeService{
         LocalDate hired = resultSet.getDate("hiredate").toLocalDate();
         BigDecimal salary = resultSet.getBigDecimal("salary");
         BigInteger managerId = resultSet.getBigDecimal("manager") != null ?
-                resultSet.getBigDecimal("manager").toBigInteger() : new BigInteger(String.valueOf(0));
+                resultSet.getBigDecimal("manager").toBigInteger() : BigInteger.ZERO;
         BigInteger departmentId = resultSet.getBigDecimal("department") != null ?
                 resultSet.getBigDecimal("department").toBigInteger() : new BigInteger(String.valueOf(0));
-        Employee manager = findManager(managerId);
+        Employee manager = findEmployee(managerId);
         Department department = findDepartment(departmentId);
         return new Employee(id, fullName, position, hired, salary, manager, department);
     }
@@ -134,7 +141,7 @@ public class EmployeeServiceImpl implements EmployeeService{
         return null;
     }
 
-    private Employee findManager(BigInteger managerId) {
+    private Employee findEmployee(BigInteger managerId) {
         try (Connection connection = ConnectionSource.instance().createConnection()) {
             PreparedStatement statement = connection.prepareStatement(FIND_MANAGER);
             statement.setInt(1, managerId.intValue());
@@ -147,5 +154,36 @@ public class EmployeeServiceImpl implements EmployeeService{
             throw new RuntimeException(e);
         }
         return null;
+    }
+
+    private List<Employee> getEmployees(Paging paging, String query, String param, Department department, Employee manager) {
+        List<Employee> employees = new ArrayList<>();
+        try (Connection connection = ConnectionSource.instance().createConnection()) {
+            PreparedStatement statement = connection.prepareStatement(query);
+            setStatementParams(paging, statement, param, department, manager);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                Employee employee = mapResultSetToEmployee(resultSet);
+                employees.add(employee);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return employees;
+    }
+
+    private static void setStatementParams(Paging paging, PreparedStatement statement, String param, Department department, Employee manager) throws SQLException {
+        if (param.equals("dep")) {
+            statement.setInt(1, department.getId().intValue());
+            statement.setInt(2, paging.itemPerPage);
+            statement.setInt(3, (paging.page - 1) * paging.itemPerPage);
+        } else if (param.equals("manager")) {
+            statement.setInt(1, manager.getId().intValue());
+            statement.setInt(2, paging.itemPerPage);
+            statement.setInt(3, (paging.page - 1) * paging.itemPerPage);
+        } else {
+            statement.setInt(1, paging.itemPerPage);
+            statement.setInt(2, (paging.page - 1) * paging.itemPerPage);
+        }
     }
 }
