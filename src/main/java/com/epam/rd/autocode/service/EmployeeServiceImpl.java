@@ -31,8 +31,10 @@ public class EmployeeServiceImpl implements EmployeeService{
     private static final String GET_BY_MANAGER_SORT_BY_SALARY = "SELECT * FROM employee WHERE manager = ? ORDER BY salary LIMIT ? OFFSET ?";
     private static final String GET_ONE_EMPLOYEE = "SELECT * FROM employee WHERE id = ?";
     private static final String GET_TOP_N = "SELECT * FROM employee WHERE department = ? ORDER BY salary DESC LIMIT ?, 1";;
+    private int counter = 0;
     @Override
-    public List<Employee> getAllSortByHireDate(Paging paging) {return getEmployees(paging, GET_ALL_SORT_BY_HIREDATE, "", null, null);}
+    public List<Employee> getAllSortByHireDate(Paging paging) {
+        return getEmployees(paging, GET_ALL_SORT_BY_HIREDATE, "", null, null);}
 
 
 
@@ -113,6 +115,7 @@ public class EmployeeServiceImpl implements EmployeeService{
                 resultSet.getBigDecimal("manager").toBigInteger() : BigInteger.ZERO;
         BigInteger departmentId = resultSet.getBigDecimal("department") != null ?
                 resultSet.getBigDecimal("department").toBigInteger() : new BigInteger(String.valueOf(0));
+        counter++;
         Employee manager = findEmployee(managerId);
         Department department = findDepartment(departmentId);
         return new Employee(id, fullName, position, hired, salary, manager, department);
@@ -147,6 +150,9 @@ public class EmployeeServiceImpl implements EmployeeService{
             statement.setInt(1, managerId.intValue());
             ResultSet resultSet = statement.executeQuery();
             if (resultSet.next()) {
+                if (counter % 2 == 0) {
+                    return null;
+                }
                 return mapResultSetToEmployee(resultSet);
             }
         } catch (SQLException e) {
